@@ -205,7 +205,8 @@ resource "aws_autoscaling_group" "autoScalingGroup" {
     desired_capacity = 2
     max_size = 4
     health_check_type = "ELB"
-    load_balancers = "${aws_lb.Loadbalancer.id}"
+    health_check_grace_period = 120
+    target_group_arns = ["${aws_lb_target_group.front_end.arn}"]
     
     vpc_zone_identifier = [
         aws_subnet.Pub_Network1.id,
@@ -216,17 +217,29 @@ resource "aws_autoscaling_group" "autoScalingGroup" {
         id = "${aws_launch_template.web.id}" 
         version = "$Latest"     
     }
-
 }
 
-resource "aws_autoscaling_attachment" "asg_attachment_bar" {
-  autoscaling_group_name = aws_autoscaling_group.autoScalingGroup.id
-  elb                    = aws_lb.Loadbalancer.id
+resource "aws_autoscaling_policy" "autoscalingPolicy" {
+    name = "Autoscaling-Policy"
+    scaling_adjustment = 1
+    adjustment_type = "ChangeInCapacity"
+    cooldown = 120
+    autoscaling_group_name = "${aws_autoscaling_group.autoScalingGroup.name}"
+}
+
+resource "aws_cloudwatch_metric_alarm" "cpuAlarm" {
+    alarm_name = "CpuUtilization"
+    comparison_operator = "GreaterThanOrEqualToThreshold"
+    evaluation_periods = "2"
+    metric_name = "CpuUtilization"
+    namespace = "AWS/EC2"
+    period = "120"
+    statistic = "Average"
+    threshold = "50"
 }
 
 /*
-https://github.com/hashicorp/terraform-provider-aws/issues/6948
-
-https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/autoscaling_group
-https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/autoscaling_attachment
+https://octopus.com/blog/dynamic-worker-army
+https://davidwzhang.com/2017/04/04/use-terraform-to-set-up-aws-auto-scaling-group-with-elb/
 */
+
