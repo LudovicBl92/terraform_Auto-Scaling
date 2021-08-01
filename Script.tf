@@ -232,9 +232,3 @@ resource "aws_autoscaling_policy" "autoscalingPolicy" {
     target_value = 25.0
   }
 }
-
-/*
-https://octopus.com/blog/dynamic-worker-army
-https://davidwzhang.com/2017/04/04/use-terraform-to-set-up-aws-auto-scaling-group-with-elb/
-*/
-
