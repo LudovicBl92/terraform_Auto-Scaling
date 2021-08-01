@@ -27,38 +27,38 @@ resource "aws_route_table" "Internet_Gateway" {
     }
 }
 
-resource "aws_subnet" "Pub_Network1" {
+resource "aws_subnet" "Pub_Network-PROD" {
     vpc_id = "${aws_vpc.main.id}"
     cidr_block = "10.0.0.0/24"
     availability_zone = "eu-west-3a"
     map_public_ip_on_launch = true
 
     tags = {
-        Name = "Public1"
+        Name = "Public-FRONT"
     }
 }
 
 
-resource "aws_subnet" "Pub_Network2" {
+resource "aws_subnet" "Pub_Network-BACK" {
     vpc_id = "${aws_vpc.main.id}"
     cidr_block = "10.0.1.0/24"
     availability_zone = "eu-west-3b"
     map_public_ip_on_launch = true
 
     tags = {
-        Name = "Public2"
+        Name = "Public-BACK"
     }
 }
 
 
 resource "aws_route_table_association" "Public_route1" {
-    subnet_id = "${aws_subnet.Pub_Network1.id}"
+    subnet_id = "${aws_subnet.Pub_Network-PROD.id}"
     route_table_id = "${aws_route_table.Internet_Gateway.id}"
 }
 
 
 resource "aws_route_table_association" "Public_route2" {
-    subnet_id = "${aws_subnet.Pub_Network2.id}"
+    subnet_id = "${aws_subnet.Pub_Network-BACK.id}"
     route_table_id = "${aws_route_table.Internet_Gateway.id}"
 }
 
@@ -103,12 +103,6 @@ resource "aws_launch_template" "web" {
     instance_type = "t2.micro"
     key_name = "AWS"
     default_version = "1.0"
-##    vpc_security_group_ids = ["${aws_security_group.SG_WEB.id}"]
-
- /* placement {
-    availability_zone = "eu-west-3a"
-  }
-*/
 
     monitoring {
       enabled = true
@@ -119,7 +113,7 @@ resource "aws_launch_template" "web" {
 
 resource "aws_instance" "EC2_WEB" {
     vpc_security_group_ids = ["${aws_security_group.SG_WEB.id}"]
-    subnet_id   = "${aws_subnet.Pub_Network1.id}"
+    subnet_id   = "${aws_subnet.Pub_Network-PROD.id}"
     
     launch_template {
         id = "${aws_launch_template.web.id}" 
@@ -134,7 +128,7 @@ resource "aws_instance" "EC2_WEB" {
 
 resource "aws_instance" "EC2_WEB2" {
     vpc_security_group_ids = ["${aws_security_group.SG_WEB.id}"]
-    subnet_id   = "${aws_subnet.Pub_Network2.id}"
+    subnet_id   = "${aws_subnet.Pub_Network-PROD.id}"
 
         launch_template {
         id = "${aws_launch_template.web.id}" 
@@ -178,8 +172,8 @@ resource "aws_lb" "Loadbalancer" {
     security_groups = ["${aws_security_group.SG_WEB.id}"]
  
     subnets = [
-        "${aws_subnet.Pub_Network1.id}",
-        "${aws_subnet.Pub_Network2.id}",
+        "${aws_subnet.Pub_Network-PROD.id}",
+        "${aws_subnet.Pub_Network-BACK.id}",
     ]
 
     tags = {
@@ -201,41 +195,41 @@ resource "aws_lb_listener" "front_end" {
 
 resource "aws_autoscaling_group" "autoScalingGroup" {
     name = "${aws_launch_template.web.name}-asg"
-    min_size = 1
+    min_size = 2
     desired_capacity = 2
-    max_size = 4
+    max_size = 2
     health_check_type = "ELB"
     health_check_grace_period = 120
     target_group_arns = ["${aws_lb_target_group.front_end.arn}"]
     
     vpc_zone_identifier = [
-        aws_subnet.Pub_Network1.id,
-        aws_subnet.Pub_Network2.id
+        aws_subnet.Pub_Network-BACK.id
     ]
 
     launch_template {
         id = "${aws_launch_template.web.id}" 
         version = "$Latest"     
     }
+
+    tag {
+        key = "Name"
+        value = "instance-ASG"
+        propagate_at_launch = true
+    }
 }
 
 resource "aws_autoscaling_policy" "autoscalingPolicy" {
     name = "Autoscaling-Policy"
-    scaling_adjustment = 1
-    adjustment_type = "ChangeInCapacity"
-    cooldown = 120
+    policy_type = "TargetTrackingScaling"
     autoscaling_group_name = "${aws_autoscaling_group.autoScalingGroup.name}"
-}
 
-resource "aws_cloudwatch_metric_alarm" "cpuAlarm" {
-    alarm_name = "CpuUtilization"
-    comparison_operator = "GreaterThanOrEqualToThreshold"
-    evaluation_periods = "2"
-    metric_name = "CpuUtilization"
-    namespace = "AWS/EC2"
-    period = "120"
-    statistic = "Average"
-    threshold = "50"
+    target_tracking_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ASGAverageCPUUtilization"
+    }
+
+    target_value = 25.0
+  }
 }
 
 /*
