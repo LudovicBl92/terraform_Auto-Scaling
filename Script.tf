@@ -2,7 +2,7 @@ resource "aws_vpc" "main" {
     cidr_block = "10.0.0.0/16"
 
     tags = {
-        Name = "Project_ELB"
+        Name = "Project_AutoScaling"
     }
 }
 
@@ -104,6 +104,11 @@ resource "aws_launch_template" "web" {
     key_name = "AWS"
     default_version = "1.0"
 
+    network_interfaces {
+        security_groups = ["${aws_security_group.SG_WEB.id}"]
+        subnet_id   = "${aws_subnet.Pub_Network-PROD.id}"
+    }
+
     monitoring {
       enabled = true
     }
@@ -112,9 +117,7 @@ resource "aws_launch_template" "web" {
 }
 
 resource "aws_instance" "EC2_WEB" {
-    vpc_security_group_ids = ["${aws_security_group.SG_WEB.id}"]
-    subnet_id   = "${aws_subnet.Pub_Network-PROD.id}"
-    
+
     launch_template {
         id = "${aws_launch_template.web.id}" 
         version = "$Latest"     
@@ -127,8 +130,6 @@ resource "aws_instance" "EC2_WEB" {
 
 
 resource "aws_instance" "EC2_WEB2" {
-    vpc_security_group_ids = ["${aws_security_group.SG_WEB.id}"]
-    subnet_id   = "${aws_subnet.Pub_Network-PROD.id}"
 
         launch_template {
         id = "${aws_launch_template.web.id}" 
